@@ -1,9 +1,14 @@
-name: PATHY "GIT" changes
+name: Notion Watch -> Email on Change
 
 on:
   schedule:
     - cron: "0 */12 * * *"
   workflow_dispatch:
+    inputs:
+      reset_baseline:
+        description: "Reset baseline without emailing"
+        required: false
+        default: "false"
 
 permissions:
   contents: write
@@ -11,9 +16,9 @@ permissions:
 jobs:
   watch:
     runs-on: ubuntu-latest
-
     env:
       NOTION_URL: "https://silver-sunset-3a0.notion.site/Git-Github-2e7030d0649680da90d6e5055eff5e46"
+      RESET_BASELINE: ${{ github.event.inputs.reset_baseline }}
 
     steps:
       - name: Checkout
@@ -28,18 +33,25 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
+          python -m playwright install --with-deps chromium
 
-      - name: Check Notion page
+      - name: Check Notion page (rendered)
         id: check
         run: python scripts/check_notion.py
 
+      # OPTIONAL: print first lines so you can SEE what it captured
+      - name: Snapshot preview (first 80 lines)
+        run: |
+          echo "---- snapshot preview ----"
+          sed -n '1,80p' state/notion.txt
+
       - name: Commit updated snapshot/hash
-        if: steps.check.outputs.changed == 'true'
+        if: steps.check.outputs.changed == 'true' || steps.check.outputs.first_run == 'true'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add state/notion.sha256 state/notion.txt
-          git commit -m "chore: update Notion snapshot"
+          git commit -m "chore: update Notion snapshot" || echo "No changes to commit"
           git push
 
       - name: Send email (SMTP)
