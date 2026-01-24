@@ -4,7 +4,12 @@ on:
   schedule:
     - cron: "0 */12 * * *"
   workflow_dispatch:
-
+    inputs:
+      force_email:
+        description: "Force send email (true/false)"
+        required: false
+        default: "false"
+        
 permissions:
   contents: write
 
@@ -34,7 +39,7 @@ jobs:
         run: python scripts/check_notion.py
 
       - name: Commit updated snapshot/hash
-        if: steps.check.outputs.changed == 'true' || steps.check.outputs.first_run == 'true'
+        if: steps.check.outputs.changed == 'true' || github.event.inputs.force_email == 'true'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
