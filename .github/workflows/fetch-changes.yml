@@ -1,14 +1,9 @@
-name: Notion Watch -> Email on Change
+name: GIT Pathy Changes
 
 on:
   schedule:
     - cron: "0 */12 * * *"
   workflow_dispatch:
-    inputs:
-      reset_baseline:
-        description: "Reset baseline without emailing"
-        required: false
-        default: "false"
 
 permissions:
   contents: write
@@ -18,7 +13,6 @@ jobs:
     runs-on: ubuntu-latest
     env:
       NOTION_URL: "https://silver-sunset-3a0.notion.site/Git-Github-2e7030d0649680da90d6e5055eff5e46"
-      RESET_BASELINE: ${{ github.event.inputs.reset_baseline }}
 
     steps:
       - name: Checkout
@@ -39,12 +33,6 @@ jobs:
         id: check
         run: python scripts/check_notion.py
 
-      # OPTIONAL: print first lines so you can SEE what it captured
-      - name: Snapshot preview (first 80 lines)
-        run: |
-          echo "---- snapshot preview ----"
-          sed -n '1,80p' state/notion.txt
-
       - name: Commit updated snapshot/hash
         if: steps.check.outputs.changed == 'true' || steps.check.outputs.first_run == 'true'
         run: |
@@ -62,9 +50,10 @@ jobs:
           server_port: ${{ secrets.SMTP_PORT }}
           username: ${{ secrets.SMTP_USERNAME }}
           password: ${{ secrets.SMTP_PASSWORD }}
-          subject: "Notion changed: Git-Github"
           from: ${{ secrets.EMAIL_FROM }}
           to: ${{ secrets.EMAIL_TO }}
+          subject: "GIT Pathy Changes: Notion updated"
+          attachments: state/notion.diff
           body: |
             Notion page changed.
 
@@ -73,4 +62,10 @@ jobs:
             Old hash: ${{ steps.check.outputs.old_hash }}
             New hash: ${{ steps.check.outputs.new_hash }}
 
-            Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+            Summary: ${{ steps.check.outputs.diff_summary }}
+
+            Diff (truncated):
+            ${{ steps.check.outputs.diff_snippet }}
+
+            Run:
+            ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
