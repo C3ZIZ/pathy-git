@@ -9,7 +9,7 @@ on:
         description: "Force send email (true/false)"
         required: false
         default: "false"
-        
+
 permissions:
   contents: write
 
@@ -38,6 +38,7 @@ jobs:
         id: check
         run: python scripts/check_notion.py
 
+      # Keep repo state updated when there is a real change, OR when you force a run
       - name: Commit updated snapshot/hash
         if: steps.check.outputs.changed == 'true' || github.event.inputs.force_email == 'true'
         run: |
@@ -48,7 +49,7 @@ jobs:
           git push
 
       - name: Send email (SMTP)
-        if: steps.check.outputs.changed == 'true'
+        if: steps.check.outputs.changed == 'true' || github.event.inputs.force_email == 'true'
         uses: dawidd6/action-send-mail@v3
         with:
           server_address: ${{ secrets.SMTP_SERVER }}
@@ -58,19 +59,10 @@ jobs:
           from: ${{ secrets.EMAIL_FROM }}
           to: ${{ secrets.EMAIL_TO }}
           subject: "GIT Pathy Changes: Notion updated"
-          attachments: state/notion.diff
+          attachments: state/notion.changes.txt
           body: |
             Notion page changed.
 
             URL: ${{ env.NOTION_URL }}
 
-            Old hash: ${{ steps.check.outputs.old_hash }}
-            New hash: ${{ steps.check.outputs.new_hash }}
-
-            Summary: ${{ steps.check.outputs.diff_summary }}
-
-            Diff (truncated):
-            ${{ steps.check.outputs.diff_snippet }}
-
-            Run:
-            ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+            ${{ steps.check.outputs.change_report }}
