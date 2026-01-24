@@ -69,24 +69,36 @@ def extract_text_with_playwright(url: str) -> str:
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
         page = browser.new_page()
+        page.set_default_navigation_timeout(120_000)
+        page.set_default_timeout(60_000)
 
-        page.goto(url, wait_until="networkidle", timeout=90_000)
+
+        # Notion doesn't reliably reach "networkidle"
+        page.goto(url, wait_until="domcontentloaded", timeout=120_000)
+
+        # Give JS time to render
+        page.wait_for_timeout(5000)
+
+        # Try to wait for something meaningful, but don't die if it doesn't appear
+        try:
+            page.wait_for_selector("main", timeout=30_000)
+        except Exception:
+            pass
+
         auto_scroll(page)
+        page.wait_for_timeout(2000)
 
-        # Try to target main content if possible; fallback to body text
-        # Notion DOM changes, so keep this defensive.
-        text = page.evaluate("() => document.body.innerText || ''")
-
+        text = page.evaluate("() => document.body ? document.body.innerText : ''")
         browser.close()
 
     text = normalize_text(text)
 
-    # If the page isn't public, you'll usually see login-like text.
     login_signals = ["Log in", "Continue with", "Sign up", "Create account"]
     if any(sig.lower() in text.lower() for sig in login_signals):
         raise SystemExit("Looks like a login wall. The Notion page is likely not public (Share to web).")
 
     return text
+
 
 
 def main() -> None:
